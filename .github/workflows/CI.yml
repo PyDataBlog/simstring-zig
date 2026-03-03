@@ -105,13 +105,17 @@ jobs:
             }
 
   test:
-    name: Test on ${{ matrix.os }}
+    name: Test on ${{ matrix.os }} with Python ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
     steps:
+      - name: Force LF line endings for Zig fmt
+        run: git config --global core.autocrlf false
+
       - uses: actions/checkout@v6
 
       - name: Setup Zig
@@ -122,7 +126,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.14"
+          python-version: ${{ matrix.python-version }}
 
       - name: Cache python dependencies
         if: runner.os != 'macOS'
@@ -135,7 +139,6 @@ jobs:
             ${{ runner.os }}-pip-
 
       - name: Check formatting
-        if: runner.os =! 'Windows'
         shell: bash
         run: |
           if [ -d tests ]; then
