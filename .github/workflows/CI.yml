@@ -135,15 +135,13 @@ jobs:
             ${{ runner.os }}-pip-
 
       - name: Check formatting
+        if: runner.os == 'Linux'
         shell: bash
         run: |
-          find apps -name '*.zig' -print0 | xargs -0 zig fmt --check
-          find src -name '*.zig' -print0 | xargs -0 zig fmt --check
           if [ -d tests ]; then
-            test_files="$(find tests -name '*.zig' -print)"
-            if [ -n "$test_files" ]; then
-              printf '%s\n' "$test_files" | xargs zig fmt --check
-            fi
+            zig fmt --check apps src tests
+          else
+            zig fmt --check apps src
           fi
 
       - name: Run Zig tests
