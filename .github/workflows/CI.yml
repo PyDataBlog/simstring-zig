@@ -170,11 +170,14 @@ jobs:
             export PYTHONPATH="$GITHUB_WORKSPACE/python:$PYTHONPATH"
           fi
           if [ "$RUNNER_OS" = "Windows" ]; then
-            export SIMSTRING_ZIG_LIB="$GITHUB_WORKSPACE/zig-out/lib/simstring_zig_native.dll"
+            export SIMSTRING_ZIG_LIB="$(pwd)/zig-out/bin/simstring_zig_native.dll"
+            if [ ! -f "$SIMSTRING_ZIG_LIB" ]; then
+              export SIMSTRING_ZIG_LIB="$(pwd)/zig-out/lib/simstring_zig_native.dll"
+            fi
           elif [ "$RUNNER_OS" = "macOS" ]; then
-            export SIMSTRING_ZIG_LIB="$GITHUB_WORKSPACE/zig-out/lib/libsimstring_zig_native.dylib"
+            export SIMSTRING_ZIG_LIB="$(pwd)/zig-out/lib/libsimstring_zig_native.dylib"
           else
-            export SIMSTRING_ZIG_LIB="$GITHUB_WORKSPACE/zig-out/lib/libsimstring_zig_native.so"
+            export SIMSTRING_ZIG_LIB="$(pwd)/zig-out/lib/libsimstring_zig_native.so"
           fi
           pytest tests/python -vv
 
