@@ -164,7 +164,11 @@ jobs:
             source .venv/bin/activate
           fi
           uv pip install pytest
-          export PYTHONPATH="$GITHUB_WORKSPACE/python:$PYTHONPATH"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            export PYTHONPATH="$GITHUB_WORKSPACE/python;$PYTHONPATH"
+          else
+            export PYTHONPATH="$GITHUB_WORKSPACE/python:$PYTHONPATH"
+          fi
           if [ "$RUNNER_OS" = "Windows" ]; then
             export SIMSTRING_ZIG_LIB="$GITHUB_WORKSPACE/zig-out/lib/simstring_zig_native.dll"
           elif [ "$RUNNER_OS" = "macOS" ]; then
