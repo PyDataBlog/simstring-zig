@@ -48,7 +48,7 @@ jobs:
         run: |
           python -m ensurepip --upgrade
           python -m pip install --upgrade pip uv
-          uv venv
+          uv venv --clear
           source .venv/bin/activate
           uv pip install simstring-rust
           python benches/run_benches.py --seconds 0.4 --iterations 3 --backends zig-native rust-native-ref python-simstring-zig python-simstring-rust
@@ -159,7 +159,7 @@ jobs:
         run: |
           python -m ensurepip --upgrade
           python -m pip install --upgrade pip uv
-          uv venv
+          uv venv --clear
           if [ "$RUNNER_OS" = "Windows" ]; then
             source .venv/Scripts/activate
           else

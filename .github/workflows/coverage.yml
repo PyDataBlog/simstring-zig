@@ -42,7 +42,7 @@ jobs:
           zig build python-lib -Doptimize=Debug
           python -m ensurepip --upgrade
           python -m pip install --upgrade pip uv
-          uv venv
+          uv venv --clear
           source .venv/bin/activate
           uv pip install pytest coverage
           export PYTHONPATH="$GITHUB_WORKSPACE/python:$PYTHONPATH"
