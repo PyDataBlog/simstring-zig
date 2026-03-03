@@ -135,7 +135,7 @@ jobs:
             ${{ runner.os }}-pip-
 
       - name: Check formatting
-        # if: runner.os == 'Linux'
+        if: runner.os =! 'Windows'
         shell: bash
         run: |
           if [ -d tests ]; then
