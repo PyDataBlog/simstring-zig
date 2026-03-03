@@ -1,0 +1,202 @@
+name: Zig CI/CD
+
+on:
+  push:
+    branches: ["main"]
+    tags:
+      - "v*"
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  benchmark:
+    name: Run Benchmarks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Cache python dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            .venv
+          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Run and compare benchmarks
+        shell: bash
+        run: |
+          python -m ensurepip --upgrade
+          python -m pip install --upgrade pip uv
+          uv venv
+          source .venv/bin/activate
+          uv pip install simstring-rust
+          python benches/run_benches.py --seconds 0.4 --iterations 3 --backends zig-native rust-native-ref python-simstring-zig python-simstring-rust
+
+      - name: Prepare benchmark results commit
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          git stash
+          git checkout main
+          git stash pop
+
+      - name: Commit benchmark results
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: stefanzweifel/git-auto-commit-action@v7
+        with:
+          commit_message: "docs(benchmarks): update benchmark results"
+          file_pattern: BENCHMARKS.md
+
+      - name: Post benchmark results to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const marker = '## Benchmark Results';
+            const benchmarks = fs.readFileSync('BENCHMARKS.md', 'utf8');
+            const body = `${marker}\n\n${benchmarks}`;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(
+              (comment) =>
+                comment.user?.login === 'github-actions[bot]' &&
+                comment.body?.startsWith(marker)
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+  test:
+    name: Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Cache python dependencies
+        if: runner.os != 'macOS'
+        uses: actions/cache@v5
+        with:
+          path: |
+            .venv
+          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Check formatting
+        shell: bash
+        run: |
+          find apps -name '*.zig' -print0 | xargs -0 zig fmt --check
+          find src -name '*.zig' -print0 | xargs -0 zig fmt --check
+          if [ -d tests ]; then
+            test_files="$(find tests -name '*.zig' -print)"
+            if [ -n "$test_files" ]; then
+              printf '%s\n' "$test_files" | xargs zig fmt --check
+            fi
+          fi
+
+      - name: Run Zig tests
+        run: |
+          zig build test -Doptimize=ReleaseFast
+
+      - name: Build Python native library
+        run: |
+          zig build python-lib -Doptimize=ReleaseFast
+
+      - name: Run Python binding tests
+        shell: bash
+        run: |
+          python -m ensurepip --upgrade
+          python -m pip install --upgrade pip uv
+          uv venv
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            source .venv/Scripts/activate
+          else
+            source .venv/bin/activate
+          fi
+          uv pip install pytest
+          export PYTHONPATH="$GITHUB_WORKSPACE/python:$PYTHONPATH"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            export SIMSTRING_ZIG_LIB="$GITHUB_WORKSPACE/zig-out/lib/simstring_zig_native.dll"
+          elif [ "$RUNNER_OS" = "macOS" ]; then
+            export SIMSTRING_ZIG_LIB="$GITHUB_WORKSPACE/zig-out/lib/libsimstring_zig_native.dylib"
+          else
+            export SIMSTRING_ZIG_LIB="$GITHUB_WORKSPACE/zig-out/lib/libsimstring_zig_native.so"
+          fi
+          pytest tests/python -vv
+
+      - name: Build demo executable
+        run: |
+          zig build -Doptimize=ReleaseFast
+
+  release:
+    name: Create GitHub Release
+    needs: [test, benchmark]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Release ${{ github.ref_name }}"
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

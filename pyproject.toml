@@ -1,0 +1,25 @@
+[build-system]
+requires = ["uv_build>=0.10.7,<0.11.0"]
+build-backend = "uv_build"
+
+[project]
+name = "simstring-zig"
+version = "0.1.0"
+requires-python = ">=3.10"
+description = "Zig implementation of SimString with Python bindings"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Bernard Brenyah" }]
+keywords = ["simstring", "string-matching", "zig", "fuzzy"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "License :: OSI Approved :: MIT License",
+]
+
+[project.urls]
+Homepage = "https://github.com/PyDataBlog/simstring-zig"
+
+[tool.uv.build-backend]
+module-name = "simstring_zig"
+module-root = "python"

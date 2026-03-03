@@ -1,2 +1,10 @@
 .zig-cache/
 zig-out/
+.venv/
+uv.lock
+__pycache__/
+.pytest_cache/
+bench/rust_ref/target/
+benches/results.json
+benches/*.csv
+benches/profile_insert_*.json
