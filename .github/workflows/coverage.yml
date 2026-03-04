@@ -1,0 +1,58 @@
+name: Code Coverage
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Cache python dependencies
+        uses: actions/cache@v5
+        with:
+          path: |
+            .venv
+          key: ${{ runner.os }}-pip-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Run Zig tests
+        run: |
+          zig build test -Doptimize=Debug
+
+      - name: Build native lib and run Python coverage
+        shell: bash
+        run: |
+          zig build python-lib -Doptimize=Debug
+          python -m ensurepip --upgrade
+          python -m pip install --upgrade pip uv
+          uv venv --clear
+          source .venv/bin/activate
+          uv pip install pytest coverage
+          export PYTHONPATH="$GITHUB_WORKSPACE/python:$PYTHONPATH"
+          export SIMSTRING_ZIG_LIB="$GITHUB_WORKSPACE/zig-out/lib/libsimstring_zig_native.so"
+          coverage run -m pytest tests/python -vv
+          coverage xml -o coverage-python.xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage-python.xml
+          fail_ci_if_error: false
