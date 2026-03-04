@@ -7,11 +7,14 @@ on:
       - "v*"
   pull_request:
     branches: ["main"]
+  schedule:
+    - cron: "0 0 * * *"
 
 jobs:
   benchmark:
     name: Run Benchmarks
     runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
     permissions:
       contents: write
       pull-requests: write
@@ -24,7 +27,7 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
         with:
-          version: 0.15.2
+          version: latest
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -105,13 +108,20 @@ jobs:
             }
 
   test:
-    name: Test on ${{ matrix.os }} with Python ${{ matrix.python-version }}
+    name: Test on ${{ matrix.os }} with Zig ${{ matrix.zig-version }} and Python ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.zig-version == 'nightly' }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14", "3.14t"]
+        zig-version: ["latest", "nightly"]
+        exclude:
+          - zig-version: nightly
+            os: windows-latest
+          - zig-version: nightly
+            os: macos-latest
     steps:
       - name: Force LF line endings for Zig fmt
         run: git config --global core.autocrlf false
@@ -121,7 +131,7 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
         with:
-          version: 0.15.2
+          version: ${{ matrix.zig-version }}
 
       - name: Set up Python
         uses: actions/setup-python@v6
